@@ -6,6 +6,8 @@ Tab Out is a Chrome extension that replaces your new tab page with a visual dash
 
 No server. No account. No external API calls. Just a Chrome extension.
 
+![Tab Out Screenshot](assets/screenshot.png)
+
 ---
 
 ## Install
