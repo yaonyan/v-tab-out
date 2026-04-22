@@ -54,7 +54,7 @@ You open a new tab
   -> Shows them as stacked browser windows, grouped by domain
   -> Hover a stack to fan out all windows
   -> Click any window to jump to that tab
-  -> Close groups you are done with (swoosh + confetti)
+  -> Close groups you're done with (swoosh + confetti)
   -> Save tabs for later before closing them
 ```
 
