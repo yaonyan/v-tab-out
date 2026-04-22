@@ -1,9 +1,8 @@
-# Tab Out - Visual Tab Manager
 # Tab Out
 
 **Keep tabs on your tabs.**
 
-Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain, with homepages (Gmail, X, LinkedIn, etc.) pulled into their own group. Close tabs with a satisfying swoosh + confetti.
+Tab Out is a Chrome extension that replaces your new tab page with a visual dashboard of all your open tabs. Each tab is rendered as a mini browser window with a live screenshot preview, grouped by domain, with homepages (Gmail, X, LinkedIn, etc.) pulled into their own group. Close tabs with a satisfying swoosh + confetti.
 
 No server. No account. No external API calls. Just a Chrome extension.
 
