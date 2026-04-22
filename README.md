@@ -1,3 +1,4 @@
+# Tab Out - Visual Tab Manager
 # Tab Out
 
 **Keep tabs on your tabs.**
