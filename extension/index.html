@@ -135,42 +135,6 @@
       </div>
       <!-- end .dashboard-columns -->
 
-      <!-- ================================================================
-       FOOTER — global stats + refresh control
-       ================================================================ -->
-      <footer>
-        <div class="footer-stats">
-          <div class="stat">
-            <div class="stat-num" id="statTabs">—</div>
-            <div class="stat-label">Open tabs</div>
-          </div>
-        </div>
-        <div class="last-refresh">
-          <span style="color: var(--muted); font-size: 11px"
-            ><a
-              href="https://github.com/zarazhangrui/tab-out"
-              target="_top"
-              style="
-                color: var(--muted);
-                text-decoration: underline;
-                text-underline-offset: 2px;
-              "
-              >Tab Out</a
-            >
-            by
-            <a
-              href="https://x.com/zarazhangrui"
-              target="_top"
-              style="
-                color: var(--muted);
-                text-decoration: underline;
-                text-underline-offset: 2px;
-              "
-              >Zara</a
-            ></span
-          >
-        </div>
-      </footer>
     </div>
     <!-- end .container -->
 
@@ -195,10 +159,6 @@
       </svg>
       <span id="toastText"></span>
     </div>
-
-    <!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc. -->
-    <!-- If the file doesn't exist, that's fine — app.js uses sensible defaults. -->
-    <script src="config.local.js"></script>
 
     <!-- Main dashboard logic — loads last so the DOM is ready -->
     <script src="app.js"></script>

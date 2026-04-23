@@ -15,6 +15,9 @@
 
 "use strict";
 
+window.LOCAL_LANDING_PAGE_PATTERNS = window.LOCAL_LANDING_PAGE_PATTERNS || [];
+window.LOCAL_CUSTOM_GROUPS = window.LOCAL_CUSTOM_GROUPS || [];
+
 /* ----------------------------------------------------------------
    CHROME TABS — Direct API Access
 
@@ -760,6 +763,39 @@ const ICONS = {
    ---------------------------------------------------------------- */
 let domainGroups = [];
 
+function applyScreenshotToBody(body, screenshot) {
+  if (!body) return;
+
+  if (screenshot) {
+    body.classList.add("has-screenshot");
+    body.style.backgroundImage = `url("${screenshot}")`;
+    return;
+  }
+
+  body.classList.remove("has-screenshot");
+  body.style.backgroundImage = "";
+}
+
+function applyScreenshotsToVisibleTabs(screenshots = {}) {
+  document.querySelectorAll(".tab-window[data-tab-url]").forEach((tabWindow) => {
+    const body = tabWindow.querySelector(".tab-window-body");
+    const url = tabWindow.dataset.tabUrl || "";
+    const entry = screenshots[url];
+    const screenshot = entry?.status === "ready" ? entry.dataUrl || "" : "";
+    applyScreenshotToBody(body, screenshot);
+  });
+}
+
+function listenForScreenshotUpdates() {
+  if (!chrome.storage?.onChanged) return;
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes.screenshots) return;
+    const screenshots = changes.screenshots.newValue || {};
+    requestAnimationFrame(() => applyScreenshotsToVisibleTabs(screenshots));
+  });
+}
+
 /* ----------------------------------------------------------------
    HELPER: filter out browser-internal pages
    ---------------------------------------------------------------- */
@@ -819,11 +855,15 @@ function buildOverflowWindows(hiddenTabs, urlCounts = {}, screenshots = {}) {
         count > 1 ? ` <span class="tab-window-dupe">(${count}x)</span>` : "";
       const safeUrl = (tab.url || "").replace(/"/g, "&quot;");
       const safeTitle = label.replace(/"/g, "&quot;");
-      const screenshot = screenshots[tab.url]?.dataUrl || "";
-      const bodyStyle = screenshot
-        ? ` style="background-image:url('${screenshot}');background-size:cover;background-position:top center;"`
-        : "";
-      return `<div class="tab-window clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+      const screenshot =
+        screenshots[tab.url]?.status === "ready"
+          ? screenshots[tab.url]?.dataUrl || ""
+          : "";
+      const bodyClass = screenshot
+        ? "tab-window-body has-screenshot"
+        : "tab-window-body";
+      const bodyStyle = screenshot ? ` style="background-image:url('${screenshot}');"` : "";
+      return `<div class="tab-window clickable" data-action="focus-tab" data-tab-id="${tab.id}" data-tab-url="${safeUrl}" title="${safeTitle}">
         <div class="tab-window-titlebar">
           <span class="tab-window-dots"><i></i><i></i><i></i></span>
           <span class="tab-window-title">${label}</span>${dupeTag}
@@ -836,7 +876,7 @@ function buildOverflowWindows(hiddenTabs, urlCounts = {}, screenshots = {}) {
             </button>
           </div>
         </div>
-        <div class="tab-window-body"${bodyStyle}></div>
+        <div class="${bodyClass}"${bodyStyle}></div>
       </div>`;
     })
     .join("");
@@ -914,11 +954,15 @@ function renderDomainCard(group, screenshots = {}) {
         const safeUrl = (tab.url || "").replace(/"/g, "&quot;");
         const safeTitle = label.replace(/"/g, "&quot;");
         const stackIdx = i; // used for stacking offset
-        const screenshot = screenshots[tab.url]?.dataUrl || "";
-        const bodyStyle = screenshot
-          ? ` style="background-image:url('${screenshot}');background-size:cover;background-position:top center;"`
-          : "";
-        return `<div class="tab-window clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}" style="--stack:${stackIdx}">
+        const screenshot =
+          screenshots[tab.url]?.status === "ready"
+            ? screenshots[tab.url]?.dataUrl || ""
+            : "";
+        const bodyClass = screenshot
+          ? "tab-window-body has-screenshot"
+          : "tab-window-body";
+        const bodyStyle = screenshot ? ` style="background-image:url('${screenshot}');"` : "";
+        return `<div class="tab-window clickable" data-action="focus-tab" data-tab-id="${tab.id}" data-tab-url="${safeUrl}" title="${safeTitle}" style="--stack:${stackIdx}">
         <div class="tab-window-titlebar">
           <span class="tab-window-dots"><i></i><i></i><i></i></span>
           <span class="tab-window-title">${label}</span>${dupeTag}
@@ -931,7 +975,7 @@ function renderDomainCard(group, screenshots = {}) {
             </button>
           </div>
         </div>
-        <div class="tab-window-body"${bodyStyle}></div>
+        <div class="${bodyClass}"${bodyStyle}></div>
       </div>`;
       })
       .join("") +
@@ -1099,8 +1143,7 @@ function renderArchiveItem(item) {
  * 2. Fetches open tabs via chrome.tabs.query()
  * 3. Groups tabs by domain (with landing pages pulled out to their own group)
  * 4. Renders domain cards
- * 5. Updates footer stats
- * 6. Renders the "Saved for Later" checklist
+ * 5. Renders the "Saved for Later" checklist
  */
 async function renderStaticDashboard() {
   // --- Header ---
@@ -1272,25 +1315,23 @@ async function renderStaticDashboard() {
     openTabsSection.style.display = "none";
   }
 
-  // --- Footer stats ---
-  const statTabs = document.getElementById("statTabs");
-  if (statTabs) statTabs.textContent = openTabs.length;
-
   // --- Check for duplicate Tab Out tabs ---
   checkTabOutDupes();
 
   // --- Render "Saved for Later" column ---
   await renderDeferredColumn();
+
+  applyScreenshotsToVisibleTabs(screenshots);
 }
 
 async function renderDashboard() {
   await renderStaticDashboard();
-  // Trigger background screenshot of ALL tabs (including background ones)
-  // via chrome.debugger protocol.
+
+  // Ask the service worker to refresh screenshots in the background.
+  // The page now patches screenshot previews in place via storage events,
+  // instead of rebuilding the whole dashboard a few seconds later.
   try {
     await chrome.runtime.sendMessage({ type: "captureAllTabs" });
-    // Re-render after a delay so screenshots are available
-    setTimeout(() => renderStaticDashboard(), 3000);
   } catch {
     // ignore
   }
@@ -1400,10 +1441,6 @@ document.addEventListener("click", async (e) => {
         });
       }, 200);
     }
-
-    // Update footer
-    const statTabs = document.getElementById("statTabs");
-    if (statTabs) statTabs.textContent = openTabs.length;
 
     showToast("Tab closed");
     return;
@@ -1524,8 +1561,6 @@ document.addEventListener("click", async (e) => {
       `Closed ${urls.length} tab${urls.length !== 1 ? "s" : ""} from ${groupLabel}`,
     );
 
-    const statTabs = document.getElementById("statTabs");
-    if (statTabs) statTabs.textContent = openTabs.length;
     return;
   }
 
@@ -1643,4 +1678,5 @@ document.addEventListener("input", async (e) => {
 /* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
+listenForScreenshotUpdates();
 renderDashboard();

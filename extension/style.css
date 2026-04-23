@@ -20,6 +20,10 @@
   --shadow: rgba(26, 22, 19, 0.06);
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -49,7 +53,7 @@ body::before {
   z-index: 1;
   max-width: 960px;
   margin: 0 auto;
-  padding: 48px 32px 80px;
+  padding: 48px 32px 56px;
 }
 
 /* When the saved-for-later sidebar is open, expand the container
@@ -230,9 +234,18 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
-  columns: 280px;
-  column-gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 280px);
+  gap: 12px;
+  align-items: start;
+  justify-content: start;
   margin-bottom: 40px;
+}
+
+@media (max-width: 680px) {
+  .missions {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mission-card {
@@ -249,8 +262,6 @@ header {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  break-inside: avoid; /* don't split a card across columns */
-  margin-bottom: 12px; /* vertical spacing (replaces grid gap) */
 }
 
 /* Colored top border instead of side bar for grid cards */
@@ -487,13 +498,25 @@ header {
   overflow: hidden;
 }
 
+.tab-window-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(248, 245, 240, 0.12) 100%
+  );
+  pointer-events: none;
+}
+
 /* When stack is hovered, expand body to show more of screenshot */
 .tab-windows-stack:hover > .tab-window .tab-window-body {
   aspect-ratio: 16 / 9;
 }
 
 /* Screenshot image fills the body without stretching */
-.tab-window-body[style*="background-image"] {
+.tab-window-body.has-screenshot {
   background-repeat: no-repeat;
   background-size: cover;
   background-position: top center;
@@ -723,59 +746,6 @@ header {
   color: var(--status-active);
 }
 
-/* ---- Footer ---- */
-footer {
-  margin-top: 48px;
-  padding-top: 20px;
-  border-top: 1px solid var(--warm-gray);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.footer-stats {
-  display: flex;
-  gap: 32px;
-}
-
-.stat {
-  text-align: center;
-}
-
-.stat-num {
-  font-family: "Newsreader", serif;
-  font-size: 28px;
-  font-weight: 300;
-  color: var(--ink);
-  line-height: 1;
-  transition: all 0.3s;
-}
-
-.stat-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-.last-refresh {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.refresh-btn {
-  font-family: "DM Sans", sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--accent-amber);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* ---- Animations ---- */
 @keyframes fadeUp {
   from {
@@ -824,10 +794,6 @@ header {
 .abandoned-section .missions .mission-card:nth-child(3) {
   animation: fadeUp 0.4s ease 0.6s both;
 }
-footer {
-  animation: fadeUp 0.5s ease 0.65s both;
-}
-
 .deferred-list .deferred-item:nth-child(1) {
   animation-delay: 0.05s;
 }
@@ -869,8 +835,7 @@ footer {
    ================================================================ */
 
 .missions-empty-state {
-  /* Takes the full width — spans all columns */
-  column-span: all;
+  grid-column: 1 / -1;
 
   display: flex;
   flex-direction: column;
