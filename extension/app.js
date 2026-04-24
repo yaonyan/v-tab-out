@@ -27,6 +27,17 @@ window.LOCAL_CUSTOM_GROUPS = window.LOCAL_CUSTOM_GROUPS || [];
 
 // All open tabs — populated by fetchOpenTabs()
 let openTabs = [];
+let hoverPreviewCleanup = null;
+let hoverPreviewOpenTimer = null;
+let hoverPreviewCloseTimer = null;
+
+const HOVER_PREVIEW_OPEN_DELAY_MS = 110;
+const HOVER_PREVIEW_CLOSE_DELAY_MS = 140;
+const HOVER_PREVIEW_VIEWPORT_GUTTER_PX = 12;
+const HOVER_PREVIEW_MIN_WIDTH_PX = 420;
+const HOVER_PREVIEW_MAX_HEIGHT_PX = 680;
+const HOVER_PREVIEW_WIDTH_MULTIPLIER = 2;
+const HOVER_PREVIEW_WIDTH_EXTRA_PX = 20;
 
 /**
  * fetchOpenTabs()
@@ -786,6 +797,174 @@ function applyScreenshotsToVisibleTabs(screenshots = {}) {
   });
 }
 
+function closeHoverPreview() {
+  if (hoverPreviewOpenTimer) {
+    clearTimeout(hoverPreviewOpenTimer);
+    hoverPreviewOpenTimer = null;
+  }
+
+  if (hoverPreviewCloseTimer) {
+    clearTimeout(hoverPreviewCloseTimer);
+    hoverPreviewCloseTimer = null;
+  }
+
+  if (hoverPreviewCleanup) {
+    hoverPreviewCleanup();
+    hoverPreviewCleanup = null;
+  }
+
+  const root = document.getElementById("hoverPreviewRoot");
+  if (root) root.innerHTML = "";
+
+  document.body.classList.remove("hover-preview-open");
+  document
+    .querySelectorAll(".mission-card.hover-preview-source")
+    .forEach((card) => card.classList.remove("hover-preview-source"));
+}
+
+function scheduleHoverPreviewClose() {
+  if (hoverPreviewCloseTimer) clearTimeout(hoverPreviewCloseTimer);
+  hoverPreviewCloseTimer = setTimeout(() => {
+    hoverPreviewCloseTimer = null;
+    closeHoverPreview();
+  }, HOVER_PREVIEW_CLOSE_DELAY_MS);
+}
+
+function cancelHoverPreviewClose() {
+  if (!hoverPreviewCloseTimer) return;
+  clearTimeout(hoverPreviewCloseTimer);
+  hoverPreviewCloseTimer = null;
+}
+
+function getHoverPreviewPanelMetrics(sourceRect) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxWidth = viewportWidth - HOVER_PREVIEW_VIEWPORT_GUTTER_PX * 2;
+  const maxHeight = viewportHeight - HOVER_PREVIEW_VIEWPORT_GUTTER_PX * 2;
+  const desiredWidth = Math.max(
+    sourceRect.width * HOVER_PREVIEW_WIDTH_MULTIPLIER +
+      HOVER_PREVIEW_WIDTH_EXTRA_PX,
+    HOVER_PREVIEW_MIN_WIDTH_PX,
+  );
+  const panelWidth = Math.min(desiredWidth, maxWidth);
+  const panelHeight = Math.min(HOVER_PREVIEW_MAX_HEIGHT_PX, maxHeight);
+  const left = Math.min(
+    Math.max(HOVER_PREVIEW_VIEWPORT_GUTTER_PX, sourceRect.left),
+    viewportWidth - panelWidth - HOVER_PREVIEW_VIEWPORT_GUTTER_PX,
+  );
+  const top = Math.min(
+    Math.max(HOVER_PREVIEW_VIEWPORT_GUTTER_PX, sourceRect.top),
+    viewportHeight - panelHeight - HOVER_PREVIEW_VIEWPORT_GUTTER_PX,
+  );
+
+  return {
+    left,
+    top,
+    width: panelWidth,
+    maxHeight: panelHeight,
+    fromScaleX: sourceRect.width > 0 ? sourceRect.width / panelWidth : 1,
+    fromScaleY: sourceRect.height > 0 ? sourceRect.height / panelHeight : 1,
+    originX: sourceRect.left - left,
+    originY: sourceRect.top - top,
+  };
+}
+
+function buildHoverPreviewPanel(tabWindows, metrics) {
+  const panel = document.createElement("div");
+  panel.className =
+    `hover-stack-panel ${tabWindows.length === 1 ? "one-column" : ""}`;
+  panel.style.left = `${metrics.left}px`;
+  panel.style.top = `${metrics.top}px`;
+  panel.style.width = `${metrics.width}px`;
+  panel.style.maxHeight = `${metrics.maxHeight}px`;
+  panel.style.setProperty("--preview-from-x", String(metrics.fromScaleX));
+  panel.style.setProperty("--preview-from-y", String(metrics.fromScaleY));
+  panel.style.setProperty("--preview-origin-x", `${metrics.originX}px`);
+  panel.style.setProperty("--preview-origin-y", `${metrics.originY}px`);
+
+  tabWindows.forEach((tabWindowEl) => {
+    panel.appendChild(tabWindowEl.cloneNode(true));
+  });
+
+  return panel;
+}
+
+function openHoverPreview(stackEl) {
+  if (!stackEl) return;
+
+  closeHoverPreview();
+
+  const root = document.getElementById("hoverPreviewRoot");
+  const card = stackEl.closest(".mission-card");
+  if (!root || !card) return;
+
+  const tabWindows = Array.from(
+    stackEl.querySelectorAll('.tab-window[data-action="focus-tab"]'),
+  );
+  if (tabWindows.length <= 1) return;
+
+  const metrics = getHoverPreviewPanelMetrics(stackEl.getBoundingClientRect());
+  const panel = buildHoverPreviewPanel(tabWindows, metrics);
+
+  root.appendChild(panel);
+  card.classList.add("hover-preview-source");
+  document.body.classList.add("hover-preview-open");
+
+  const onLeave = (event) => {
+    const related = event.relatedTarget;
+    if (related && (stackEl.contains(related) || panel.contains(related))) {
+      return;
+    }
+    scheduleHoverPreviewClose();
+  };
+
+  const onEnter = () => cancelHoverPreviewClose();
+
+  const onFocusPreview = async (event) => {
+    const target = event.target.closest('[data-action="focus-tab"]');
+    if (!target) return;
+
+    const tabUrl = target.dataset.tabUrl;
+    closeHoverPreview();
+    if (tabUrl) await focusTab(tabUrl);
+  };
+
+  stackEl.addEventListener("mouseenter", onEnter);
+  stackEl.addEventListener("mouseleave", onLeave);
+  panel.addEventListener("mouseenter", onEnter);
+  panel.addEventListener("mouseleave", onLeave);
+  panel.addEventListener("click", onFocusPreview);
+
+  hoverPreviewCleanup = () => {
+    stackEl.removeEventListener("mouseenter", onEnter);
+    stackEl.removeEventListener("mouseleave", onLeave);
+    panel.removeEventListener("mouseenter", onEnter);
+    panel.removeEventListener("mouseleave", onLeave);
+    panel.removeEventListener("click", onFocusPreview);
+  };
+}
+
+function bindHoverPreviews() {
+  document.querySelectorAll(".tab-windows-stack").forEach((stackEl) => {
+    if (stackEl.dataset.hoverPreviewBound === "true") return;
+    stackEl.dataset.hoverPreviewBound = "true";
+
+    stackEl.addEventListener("mouseenter", () => {
+      if (hoverPreviewOpenTimer) clearTimeout(hoverPreviewOpenTimer);
+      hoverPreviewOpenTimer = setTimeout(() => {
+        hoverPreviewOpenTimer = null;
+        openHoverPreview(stackEl);
+      }, HOVER_PREVIEW_OPEN_DELAY_MS);
+    });
+
+    stackEl.addEventListener("mouseleave", () => {
+      if (!hoverPreviewOpenTimer) return;
+      clearTimeout(hoverPreviewOpenTimer);
+      hoverPreviewOpenTimer = null;
+    });
+  });
+}
+
 function listenForScreenshotUpdates() {
   if (!chrome.storage?.onChanged) return;
 
@@ -1321,7 +1500,9 @@ async function renderStaticDashboard() {
   // --- Render "Saved for Later" column ---
   await renderDeferredColumn();
 
+  closeHoverPreview();
   applyScreenshotsToVisibleTabs(screenshots);
+  bindHoverPreviews();
 }
 
 async function renderDashboard() {
@@ -1398,6 +1579,7 @@ document.addEventListener("click", async (e) => {
   // ---- Focus a specific tab ----
   if (action === "focus-tab") {
     const tabUrl = actionEl.dataset.tabUrl;
+    closeHoverPreview();
     if (tabUrl) await focusTab(tabUrl);
     return;
   }
@@ -1674,6 +1856,9 @@ document.addEventListener("input", async (e) => {
     console.warn("[tab-out] Archive search failed:", err);
   }
 });
+
+window.addEventListener("resize", closeHoverPreview);
+window.addEventListener("scroll", closeHoverPreview, true);
 
 /* ----------------------------------------------------------------
    INITIALIZE

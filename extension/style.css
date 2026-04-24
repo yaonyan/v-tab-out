@@ -240,6 +240,7 @@ header {
   align-items: start;
   justify-content: start;
   margin-bottom: 40px;
+  transition: filter 0.18s ease;
 }
 
 @media (max-width: 680px) {
@@ -262,6 +263,7 @@ header {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 /* Colored top border instead of side bar for grid cards */
@@ -392,6 +394,7 @@ header {
 .tab-windows-stack {
   position: relative;
   padding-top: 4px;
+  isolation: isolate;
 }
 
 .tab-window {
@@ -400,10 +403,12 @@ header {
   border: 1px solid var(--warm-gray);
   border-radius: 6px;
   overflow: hidden;
+  transform-origin: top center;
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    margin 0.2s ease;
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease,
+    opacity 0.2s ease,
+    filter 0.2s ease;
   cursor: pointer;
 }
 
@@ -419,15 +424,90 @@ header {
   z-index: calc(var(--stack, 1));
 }
 
-/* Hover: fan out all windows so they're all visible */
-.tab-windows-stack:hover > .tab-window {
-  transform: translateY(0) translateX(0);
-  margin-top: 12px;
-  box-shadow: 0 2px 8px var(--shadow);
+.tab-window:hover {
+  box-shadow: 0 10px 24px rgba(26, 22, 19, 0.14);
 }
 
-.tab-windows-stack:hover > .tab-window:first-child {
-  margin-top: 0;
+body.hover-preview-open .missions .mission-card {
+  filter: blur(1px) saturate(0.92);
+  opacity: 0.68;
+}
+
+body.hover-preview-open .missions .mission-card.hover-preview-source {
+  filter: none;
+  opacity: 1;
+}
+
+#hoverPreviewRoot {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.hover-stack-panel {
+  position: absolute;
+  width: min(560px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(248, 245, 240, 0.78);
+  border: 1px solid rgba(232, 226, 218, 0.95);
+  box-shadow: 0 18px 42px rgba(26, 22, 19, 0.16);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+  transform-origin: var(--preview-origin-x, 24px) var(--preview-origin-y, 24px);
+  animation: hoverPreviewIn 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hover-stack-panel.one-column {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.hover-stack-panel .tab-window {
+  margin-top: 0 !important;
+  width: auto !important;
+  transform: none !important;
+  box-shadow: 0 10px 22px rgba(26, 22, 19, 0.12);
+}
+
+.hover-stack-panel .tab-window:hover {
+  transform: translateY(-1px) !important;
+}
+
+.hover-stack-panel .tab-window-actions {
+  display: none;
+}
+
+.hover-stack-panel .tab-window-titlebar {
+  min-height: 30px;
+  padding: 4px 7px;
+}
+
+.hover-stack-panel .tab-window-title {
+  font-size: 11px;
+}
+
+.hover-stack-panel .tab-window-body {
+  aspect-ratio: 16 / 8.5;
+}
+
+@keyframes hoverPreviewIn {
+  from {
+    opacity: 0;
+    transform: scale(
+      var(--preview-from-x, 0.82),
+      var(--preview-from-y, 0.72)
+    );
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Titlebar */
